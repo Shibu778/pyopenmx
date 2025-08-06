@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from matplotlib import style
 import sys
+import json
 
 style_file = Path(__file__).parent / "pyopenmx.mplstyle"
 style.use(style_file)
@@ -113,6 +114,64 @@ class PlotPDOS:
                     grouped_data[atom][group_key]["pdos_down"] += orbital_data[
                         "pdos_down"
                     ]
+        return grouped_data
+
+    def group_species(self, list_of_atoms={"Fe": [1, 2, 3], "Ge": [4], "Te": [5, 6]}):
+        """Group PDOS data for a list of species."""
+        grouped_data = {}
+        for species, indices in list_of_atoms.items():
+            grouped_data[species] = {
+                "atom": {"energies": [], "pdos_up": [], "pdos_down": []},
+                "s1": {"energies": [], "pdos_up": [], "pdos_down": []},
+                "p1": {"energies": [], "pdos_up": [], "pdos_down": []},
+                "p2": {"energies": [], "pdos_up": [], "pdos_down": []},
+                "p3": {"energies": [], "pdos_up": [], "pdos_down": []},
+                "d1": {"energies": [], "pdos_up": [], "pdos_down": []},
+                "d2": {"energies": [], "pdos_up": [], "pdos_down": []},
+                "d3": {"energies": [], "pdos_up": [], "pdos_down": []},
+                "d4": {"energies": [], "pdos_up": [], "pdos_down": []},
+                "d5": {"energies": [], "pdos_up": [], "pdos_down": []},
+                "f1": {"energies": [], "pdos_up": [], "pdos_down": []},
+                "f2": {"energies": [], "pdos_up": [], "pdos_down": []},
+                "f3": {"energies": [], "pdos_up": [], "pdos_down": []},
+                "f4": {"energies": [], "pdos_up": [], "pdos_down": []},
+                "f5": {"energies": [], "pdos_up": [], "pdos_down": []},
+                "f6": {"energies": [], "pdos_up": [], "pdos_down": []},
+                "f7": {"energies": [], "pdos_up": [], "pdos_down": []},
+            }
+            for index in indices:
+                atom_key = f"atom{index}"
+                if atom_key in self.pdos_data:
+                    atom_data = self.pdos_data[atom_key]
+                    if not np.array(grouped_data[species]["atom"]["energies"]).any():
+                        grouped_data[species]["atom"]["energies"] = atom_data["atom"][
+                            "energies"
+                        ]
+                    grouped_data[species]["atom"]["pdos_up"].append(
+                        atom_data["atom"]["pdos_up"]
+                    )
+                    grouped_data[species]["atom"]["pdos_down"].append(
+                        atom_data["atom"]["pdos_down"]
+                    )
+            # Convert lists to numpy arrays for easier manipulation
+            grouped_data[species]["atom"]["pdos_up"] = np.array(
+                grouped_data[species]["atom"]["pdos_up"]
+            )
+            grouped_data[species]["atom"]["pdos_down"] = np.array(
+                grouped_data[species]["atom"]["pdos_down"]
+            )
+            grouped_data[species]["atom"]["energies"] = np.array(
+                grouped_data[species]["atom"]["energies"]
+            )
+
+            # Sum the PDOS for the grouped species
+            grouped_data[species]["atom"]["pdos_up"] = np.sum(
+                grouped_data[species]["atom"]["pdos_up"], axis=0
+            )
+            grouped_data[species]["atom"]["pdos_down"] = np.sum(
+                grouped_data[species]["atom"]["pdos_down"], axis=0
+            )
+
         return grouped_data
 
     def group_species_and_orbitals(
@@ -292,6 +351,24 @@ class PlotPDOS:
             plt.tight_layout()
             plt.savefig(self.pdos_folder / f"PDOS_{species}_orbitals.svg")
             plt.close()
+
+    def dump_data(self, filename="pdos_data.json", data=None):
+        if data is None:
+            data = self.pdos_data
+
+        with open(filename, "w") as f:
+            json.dump(data, f, indent=4, default=str)
+
+        np_filename = filename.replace(".json", ".npy")
+        np.save(np_filename, data)
+
+    def load_data(self, filename="pdos_data.json"):
+        with open(filename, "r") as f:
+            data = json.load(f)
+        self.pdos_data = data
+        self.grouped_orbitals = self.group_orbitals()
+        self.grouped_species_orbitals = self.group_species_and_orbitals()
+        return data
 
 
 if __name__ == "__main__":
