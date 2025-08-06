@@ -5,7 +5,7 @@ from pathlib import Path
 from matplotlib import style
 import sys
 
-style_file = Path(__file__).parent / "defectpl.mplstyle"
+style_file = Path(__file__).parent / "pyopenmx.mplstyle"
 style.use(style_file)
 
 # Make all the fonts arial
