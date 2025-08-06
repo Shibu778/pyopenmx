@@ -1,0 +1,96 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyopenmx"
+version = "0.1.0"
+authors = [
+    { name="Shibu Meher", email="shibumeher@iisc.ac.in" },
+]
+description = "A Python library for pre and post-processing of OpenMX calculations."
+readme = "README.md"
+requires-python = ">=3.8"
+keywords = ["openmx", "computational-chemistry", "materials-science", "physics"]
+license = { text = "MIT License" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Chemistry",
+]
+
+dependencies = [
+    "numpy>=1.22",
+    "scipy>=1.8",
+    "matplotlib>=3.5",
+    "pydantic>=2.0",
+    "ase>=3.25.0",
+    "click>=8.2.1",
+    "xmltodict>=0.14.2"
+]
+
+# This is a good place to list optional dependencies.
+# For example, dependencies needed for documentation or testing.
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+    "black>=22.3",
+    "pylint>=2.13",
+    "pre-commit",
+    "mkdocs-material",
+]
+
+# Package discovery.
+# This tells setuptools how to find your package's modules.
+[tool.setuptools.packages.find]
+where = ["src"] # Assumes your code is in a directory named 'src'
+include = ["pyqe*"] # Only include the 'pyqe' package
+
+# Commandline interface
+[project.scripts]
+pyqe = "pyqe.cli:cli"
+
+# Tooling configuration.
+# You can configure various development tools in this section.
+# This example uses Black, a popular code formatter.
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+
+# Configuration for Pylint, a static code analyzer.
+# You can add or remove checks here.
+[tool.pylint.master]
+ignore-paths = [
+    "docs",
+    "tests",
+]
+
+[tool.pylint.messages_control]
+disable = [
+    "C0114", # Missing module docstring
+    "C0115", # Missing class docstring
+    "C0116", # Missing function docstring
+    "E0401", # Unable to import
+]
+
+[tool.pylint.format]
+max-line-length = 88
