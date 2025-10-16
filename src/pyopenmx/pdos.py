@@ -35,7 +35,9 @@ class PlotPDOS:
         root_path="./",
         pdos_folder="pdos_tetrahedron",
         spinpolarization="on",
+        dostype="Tetrahedron",
     ):
+        self.dostype = dostype
         self.root_path = Path(root_path)
         self.pdos_folder = self.root_path / pdos_folder
         self.pdos_filename, self.pdos_data = self.get_pdos_files()
@@ -46,7 +48,7 @@ class PlotPDOS:
 
     def get_pdos_files(self):
         """Get all PDOS files in the specified folder."""
-        pdos_files = list(self.pdos_folder.glob("*.PDOS.Tetrahedron.*"))
+        pdos_files = list(self.pdos_folder.glob(f"*.PDOS.{self.dostype}.*"))
         # Get the filenames without the path
         pdos_files = [file.name for file in pdos_files]
         pdos_data = {}
@@ -64,7 +66,17 @@ class PlotPDOS:
 
     def load_pdos(self, pdos_file):
         """Load PDOS data from the specified file."""
-        data = np.loadtxt(self.pdos_folder / pdos_file)
+        """
+        Notes: In these files, the first and second columns are energy 
+        in eV and DOS (eV$^{-1}$) or PDOS (eV$^{-1}$), and the third column 
+        is the integrated DOS or PDOS. If a spin-polarized calculation using 
+        'LSDA-CA', 'LSDA-PW', or 'GGA-PBE' is employed in the SCF calculation, 
+        the second and third columns in these files correspond to DOS or PDOS 
+        for up and down spin states, respectively, and the fourth and fifth 
+        columns are the corresponding integrated values.
+        Ref: https://www.openmx-square.org/openmx_man3.9/node70.html
+        """
+        data = np.loadtxt(pdos_file)
         energies = data[:, 0]  # First column is energy
         data_dict = {}
         if self.spinpolarization == "on":
@@ -86,11 +98,15 @@ class PlotPDOS:
             f = pdos_file.split(".")
             if len(f) == 4:
                 atom = f[3]
-                self.pdos_data[atom]["atom"] = self.load_pdos(pdos_file)
+                self.pdos_data[atom]["atom"] = self.load_pdos(
+                    self.pdos_folder / pdos_file
+                )
             elif len(f) == 5:
                 atom = f[3]
                 orbital = f[4]
-                self.pdos_data[atom][orbital] = self.load_pdos(pdos_file)
+                self.pdos_data[atom][orbital] = self.load_pdos(
+                    self.pdos_folder / pdos_file
+                )
             else:
                 raise ValueError(f"Unexpected file format: {f}")
 
@@ -370,6 +386,93 @@ class PlotPDOS:
         self.grouped_species_orbitals = self.group_species_and_orbitals()
         return data
 
+    def plot_custom_pdos(
+        self,
+        atom_list,
+        legend,
+        orbital_list=None,
+        total_dos=None,
+        output_path="custom_pdos.svg",
+        color_list=None,
+        kwargs={},
+    ):
+        """Plot custom PDOS for a list of atoms and orbitals.
+
+        Args:
+            atom_list (list[list]): It sums data for each sublist and plots it.
+                e.g. [['atom1'], ['atom2']] or [['atom1', 'atom2'], ['atom3']]
+                First case will plot PDOS for atom1 and atom2 separately,
+                second case will sum PDOS for atom1 and atom2 and plot it together.
+            orbital_list (list[list], optional): List of orbitals to sum for each sublist.
+                e.g. [['s'], ['p1', 'p2', 'p3']] or [['s'], ['s', 'p', 'd']]
+                First case will plot s orbital for first sublist and p1+p2+p3 for second sublist.
+                Second case will sum s+p+d for each sublist and plot it.
+                If None, it will plot the total PDOS for each sublist.
+            legend (list): Legend for each sublist.
+            total_dos (path): Path to the total DOS file to plot alongside PDOS.
+
+            Note: Length of legend must be equal to length of atom_list and orbital_list (if provided).
+        """
+        data_to_plot = []
+        for i, atoms in enumerate(atom_list):
+            summed_data = {"energies": None, "pdos_up": 0, "pdos_down": 0}
+            for atom in atoms:
+                if atom not in self.pdos_data:
+                    print(f"Atom {atom} not found in PDOS data. Skipping.")
+                    continue
+                atom_data = self.pdos_data[atom]
+                if orbital_list and i < len(orbital_list):
+                    orbitals = orbital_list[i]
+                    for orbital in orbitals:
+                        if orbital in atom_data:
+                            orbital_data = atom_data[orbital]
+                            if summed_data["energies"] is None:
+                                summed_data["energies"] = orbital_data["energies"]
+                            summed_data["pdos_up"] += orbital_data["pdos_up"]
+                            summed_data["pdos_down"] += orbital_data["pdos_down"]
+                        else:
+                            print(
+                                f"Orbital {orbital} not found for atom {atom}. Skipping."
+                            )
+                else:
+                    # Sum total PDOS from 'atom' key
+                    total_data = atom_data["atom"]
+                    if summed_data["energies"] is None:
+                        summed_data["energies"] = total_data["energies"]
+                    summed_data["pdos_up"] += total_data["pdos_up"]
+                    summed_data["pdos_down"] += total_data["pdos_down"]
+            data_to_plot.append(summed_data)
+        if total_dos:
+            total_dos_data = self.load_pdos(total_dos)
+            data_to_plot.append(total_dos_data)
+            legend.append("Total DOS")
+
+        plt.figure(figsize=(6, 4))
+        if color_list is None:
+            color_list = colors
+        for i, data in enumerate(data_to_plot):
+            plt.plot(
+                data["energies"],
+                data["pdos_up"],
+                label=f"{legend[i]}",
+                color=color_list[i],
+                **kwargs,
+            )
+            plt.plot(
+                data["energies"],
+                data["pdos_down"],
+                color=color_list[i],
+                **kwargs,
+            )
+        plt.xlabel("Energy (eV)")
+        plt.ylabel("DOS (states/eV)")
+        # plt.title("Custom PDOS Plot")
+        plt.legend(loc="upper right")
+        plt.grid(alpha=0.3, linestyle="--")
+        plt.xlim(-5, 5)
+        plt.tight_layout()
+        plt.savefig(output_path)
+
 
 if __name__ == "__main__":
     # Example usage
@@ -382,3 +485,17 @@ if __name__ == "__main__":
     plotter.plot_atomwise_pdos()  # Plot PDOS for each atom
     plotter.plot_atomwise_orbital_pdos()  # Plot PDOS for each atom and orbital
     plotter.plot_species_orbital_pdos()  # Plot PDOS for each species and orbital
+    # Custom PDOS plot example
+    atom_list = [["atom1", "atom2"], ["atom3"]]
+    orbital_list = [
+        ["d1", "d2", "d3", "d4", "d5"],
+        ["d1", "d2", "d3", "d4", "d5"],
+    ]
+    labels = ["Fe-out (3d)", "Fe-in (3d)"]
+    plotter.plot_custom_pdos(
+        atom_list,
+        labels,
+        orbital_list,
+        total_dos="f3gt.DOS.Tetrahedron",
+        output_path="custom_pdos.svg",
+    )
