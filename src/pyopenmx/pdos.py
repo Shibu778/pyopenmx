@@ -5,6 +5,7 @@ from pathlib import Path
 from matplotlib import style
 import sys
 import json
+import pandas as pd
 
 style_file = Path(__file__).parent / "pyopenmx.mplstyle"
 style.use(style_file)
@@ -394,6 +395,9 @@ class PlotPDOS:
         total_dos=None,
         output_path="custom_pdos.svg",
         color_list=None,
+        draw_fermi_level=True,
+        grid=False,
+        dump_data_file=None,
         kwargs={},
     ):
         """Plot custom PDOS for a list of atoms and orbitals.
@@ -464,14 +468,49 @@ class PlotPDOS:
                 color=color_list[i],
                 **kwargs,
             )
-        plt.xlabel("Energy (eV)")
+        if draw_fermi_level:
+            plt.axvline(x=0, color="k", linestyle="--", alpha=0.7)  # , label="E$_F$")
+
+        plt.xlabel(f"E-F$_F$ (eV)")
         plt.ylabel("DOS (states/eV)")
         # plt.title("Custom PDOS Plot")
         plt.legend(loc="upper right")
-        plt.grid(alpha=0.3, linestyle="--")
+        if grid:
+            plt.grid(alpha=0.3, linestyle="--")
+        else:
+            plt.axhline(y=0, color="k", linestyle="-", alpha=0.7)
         plt.xlim(-5, 5)
         plt.tight_layout()
         plt.savefig(output_path)
+
+        if dump_data_file:
+            self.dump_custom_data_csv(
+                data_to_plot,
+                legend,
+                filename=dump_data_file,
+            )
+
+    def dump_custom_data_csv(
+        self,
+        data_to_plot,
+        legend,
+        filename="custom_pdos_data.csv",
+    ):
+        """Dump custom PDOS data to a CSV file.
+
+        Args:
+            data_to_plot (list): List of PDOS data dictionaries to dump.
+            legend (list): Legend for each PDOS data.
+            filename (str): Output CSV filename.
+        """
+        df = pd.DataFrame()
+        for i, data in enumerate(data_to_plot):
+            df[f"{legend[i]}_energies"] = data["energies"]
+            df[f"{legend[i]}_up"] = data["pdos_up"]
+            df[f"{legend[i]}_down"] = data["pdos_down"]
+
+        df.to_csv(filename, index=False)
+        print(f"Custom PDOS data dumped to {filename}")
 
 
 if __name__ == "__main__":
